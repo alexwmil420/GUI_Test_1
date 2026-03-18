@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CineSearch Pro</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<div id="app" data-loading="false">
+
+  <h1>CineSearch</h1>
+
+  <input id="searchInput" placeholder="Search for a movie...">
+
+  <div id="spinner">Loading...</div>
+
+  <ul id="results"></ul>
+
+  <template id="movie-template">
+    <li class="result-item">
+      <span class="title"></span>
+    </li>
+  </template>
+
+  <div id="movieDetails"></div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
