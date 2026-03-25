@@ -4,6 +4,9 @@ const input = document.getElementById("searchInput");
 const results = document.getElementById("results");
 const template = document.getElementById("movie-template");
 const detailsContainer = document.getElementById("movieDetails");
+const detailsEmpty = document.getElementById("detailsEmpty");
+const header = document.querySelector(".header");
+const statusBar = document.getElementById("statusBar");
 
 const cache = new Map();
 
@@ -22,11 +25,15 @@ input.addEventListener("input", () => {
 
     if (!query) {
       results.innerHTML = "";
+      detailsEmpty.style.display = "flex";
+      detailsContainer.innerHTML = "";
+      statusBar.textContent = "READY";
       return;
     }
 
     if (cache.has(query)) {
       renderResults(cache.get(query), query);
+      statusBar.textContent = "CACHE HIT";
       return;
     }
 
@@ -54,6 +61,15 @@ input.addEventListener("keydown", (e) => {
     items[activeIndex]?.click();
   }
 
+  if (e.key === "Escape") {
+    input.value = "";
+    results.innerHTML = "";
+    detailsEmpty.style.display = "flex";
+    detailsContainer.innerHTML = "";
+    statusBar.textContent = "READY";
+    return;
+  }
+
   items.forEach(el => el.classList.remove("active"));
 
   if (items[activeIndex]) {
@@ -67,7 +83,7 @@ async function search(query) {
 
   controller = new AbortController();
 
-  document.body.dataset.loading = "true";
+  header.dataset.loading = "true";
 
   try {
     const res = await fetch(
@@ -80,36 +96,47 @@ async function search(query) {
     cache.set(query, data.results);
 
     renderResults(data.results, query);
+    statusBar.textContent = `${data.results.length} RESULTS · NETWORK`;
 
   } catch (err) {
     if (err.name !== "AbortError") {
       console.error(err);
+      statusBar.textContent = "ERROR";
     }
   }
 
-  document.body.dataset.loading = "false";
+  header.dataset.loading = "false";
 }
 
 // RENDER RESULTS
 function renderResults(movies, query) {
 
   if (!movies.length) {
-    results.textContent = "No results found";
+    results.innerHTML = "<li style='padding: 20px; text-align: center; color: var(--text-muted); grid-column: 1/-1;'>No results found</li>";
     return;
   }
 
   const frag = new DocumentFragment();
 
-  movies.forEach(movie => {
+  movies.forEach((movie, idx) => {
     const clone = template.content.cloneNode(true);
 
     const item = clone.querySelector(".result-item");
-    const title = clone.querySelector(".title");
+    const titleEl = clone.querySelector(".result-title");
+    const meta = clone.querySelector(".result-meta");
+    const rating = clone.querySelector(".result-rating");
 
-    title.innerHTML = "";
-    title.appendChild(buildHighlightedTitle(movie.title, query));
+    titleEl.innerHTML = "";
+    titleEl.appendChild(buildHighlightedTitle(movie.title, query));
+    
+    meta.textContent = `${movie.release_date?.slice(0, 4) || "N/A"} · ${movie.vote_average || "N/A"}★`;
+    rating.textContent = `★ ${(movie.vote_average || 0).toFixed(1)}`;
 
     item.addEventListener("click", () => {
+      activeIndex = idx;
+      document.querySelectorAll(".result-item").forEach((el, i) => {
+        el.classList.toggle("active", i === idx);
+      });
       loadMovieDetails(movie.id);
     });
 
@@ -125,15 +152,13 @@ function renderResults(movies, query) {
 async function loadMovieDetails(movieId) {
   const base = "https://api.themoviedb.org/3";
 
-  document.body.dataset.loading = "true";
+  header.dataset.loading = "true";
+  detailsEmpty.style.display = "none";
   detailsContainer.innerHTML = "";
 
   const requests = [
     fetch(`${base}/movie/${movieId}?api_key=${apiKey}`).then(r => r.json()),
-
-    //BREAK FOR DEMO
     fetch(`${base}/movie/${movieId}/credits?api_key=${apiKey}`).then(r => r.json()),
-
     fetch(`${base}/movie/${movieId}/videos?api_key=${apiKey}`).then(r => r.json())
   ];
 
@@ -157,19 +182,42 @@ async function loadMovieDetails(movieId) {
     showError("Videos failed to load");
   }
 
-  document.body.dataset.loading = "false";
+  detailsContainer.classList.add("visible");
+  header.dataset.loading = "false";
 }
 
 // RENDER DETAILS
 function renderDetails(data) {
+  const header = document.createElement("div");
+  header.className = "detail-header";
+
   const title = document.createElement("h2");
+  title.className = "detail-title";
   title.textContent = data.title;
 
-  const overview = document.createElement("p");
-  overview.textContent = data.overview;
+  const meta = document.createElement("div");
+  meta.className = "detail-meta";
 
-  const genres = document.createElement("p");
-  genres.textContent = "Genres: " + data.genres.map(g => g.name).join(", ");
+  const yearTag = document.createElement("span");
+  yearTag.className = "detail-tag";
+  yearTag.textContent = data.release_date?.slice(0, 4) || "N/A";
+  meta.appendChild(yearTag);
+
+  if (data.genres && data.genres.length) {
+    data.genres.slice(0, 3).forEach(g => {
+      const tag = document.createElement("span");
+      tag.className = "detail-tag";
+      tag.textContent = g.name;
+      meta.appendChild(tag);
+    });
+  }
+
+  header.appendChild(title);
+  header.appendChild(meta);
+
+  const overview = document.createElement("p");
+  overview.className = "detail-overview";
+  overview.textContent = data.overview || "No overview available";
 
   // ADD POSTER IMAGE
   const posterContainer = document.createElement("div");
@@ -183,61 +231,112 @@ function renderDetails(data) {
     posterContainer.appendChild(poster);
   }
 
-  detailsContainer.append(title, posterContainer, overview, genres);
+  const sections = document.createElement("div");
+  sections.className = "detail-sections";
+  sections.id = "detail-sections";
+
+  detailsContainer.appendChild(header);
+  if (posterContainer.querySelector("img")) {
+    detailsContainer.appendChild(posterContainer);
+  }
+  detailsContainer.appendChild(overview);
+  detailsContainer.appendChild(sections);
 }
 
 // RENDER CREDITS
 function renderCredits(data) {
-
-  if (!data.cast) {
-    showError("No cast data available");
+  const sections = document.getElementById("detail-sections");
+  
+  if (!data.cast || !data.cast.length) {
     return;
   }
 
-  const castTitle = document.createElement("h3");
-  castTitle.textContent = "Cast";
+  const section = document.createElement("div");
+  section.className = "detail-section";
 
-  const list = document.createElement("ul");
+  const title = document.createElement("div");
+  title.className = "section-title";
+  title.textContent = "Cast";
 
-  data.cast.slice(0, 5).forEach(actor => {
-    const li = document.createElement("li");
-    li.textContent = actor.name;
-    list.appendChild(li);
+  const list = document.createElement("div");
+  list.className = "cast-list";
+
+  data.cast.slice(0, 6).forEach(actor => {
+    const item = document.createElement("div");
+    item.className = "cast-item";
+
+    const avatar = document.createElement("div");
+    avatar.className = "cast-avatar";
+    avatar.textContent = actor.name[0];
+
+    const name = document.createElement("div");
+    name.className = "cast-name";
+    name.textContent = actor.name;
+
+    const char = document.createElement("div");
+    char.className = "cast-character";
+    char.textContent = actor.character || "—";
+
+    item.appendChild(avatar);
+    item.appendChild(name);
+    item.appendChild(char);
+    list.appendChild(item);
   });
 
-  detailsContainer.append(castTitle, list);
+  section.appendChild(title);
+  section.appendChild(list);
+  sections.appendChild(section);
 }
 
 // RENDER VIDEOS
 function renderVideos(data) {
+  const sections = document.getElementById("detail-sections");
 
-  if (!data.results) {
-    showError("No video data available");
+  if (!data.results || !data.results.length) {
     return;
   }
 
-  const videoTitle = document.createElement("h3");
-  videoTitle.textContent = "Trailer";
+  const section = document.createElement("div");
+  section.className = "detail-section";
+
+  const title = document.createElement("div");
+  title.className = "section-title";
+  title.textContent = "Trailer";
 
   const trailer = data.results.find(v => v.type === "Trailer");
 
   if (trailer) {
     const link = document.createElement("a");
     link.href = `https://www.youtube.com/watch?v=${trailer.key}`;
-    link.textContent = "Watch Trailer";
     link.target = "_blank";
+    link.className = "trailer-link";
+    link.textContent = "▶ Watch Trailer";
 
-    detailsContainer.append(videoTitle, link);
+    section.appendChild(title);
+    section.appendChild(link);
   } else {
-    showError("No trailer available");
+    const msg = document.createElement("p");
+    msg.className = "trailer-unavailable";
+    msg.textContent = "Trailer unavailable";
+
+    section.appendChild(title);
+    section.appendChild(msg);
   }
+
+  sections.appendChild(section);
 }
 
 // ERROR DISPLAY
 function showError(message) {
+  const sections = document.getElementById("detail-sections");
+  if (!sections) return;
+  
   const error = document.createElement("p");
+  error.style.color = "var(--text-muted)";
+  error.style.fontSize = "12px";
+  error.style.fontStyle = "italic";
   error.textContent = message;
-  detailsContainer.appendChild(error);
+  sections.appendChild(error);
 }
 
 // SAFE HIGHLIGHT 
