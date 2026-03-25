@@ -2,30 +2,58 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CineSearch Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
 
-<div id="app" data-loading="false">
+<div class="layout">
+  <header class="header" data-loading="false">
+    <div class="logo">CINE<span>SEARCH</span></div>
+    
+    <div class="search-container">
+      <input 
+        id="searchInput" 
+        type="text" 
+        placeholder="Search films..." 
+        autocomplete="off"
+        class="search-input"
+      >
+      <div class="spinner"></div>
+    </div>
 
-  <h1>CineSearch</h1>
+    <div class="status" id="statusBar">READY</div>
+  </header>
 
-  <input id="searchInput" placeholder="Search for a movie...">
+  <aside class="sidebar">
+    <div class="sidebar-header">Results</div>
 
-  <div id="spinner">Loading...</div>
+    <template id="movie-template">
+      <li class="result-item">
+        <div class="result-img-wrap">🎬</div>
+        <div class="result-content">
+          <div class="result-title"></div>
+          <div class="result-meta"></div>
+        </div>
+        <div class="result-rating"></div>
+      </li>
+    </template>
 
-  <ul id="results"></ul>
+    <ul id="results" class="results-list"></ul>
+  </aside>
 
-  <template id="movie-template">
-    <li class="result-item">
-      <span class="title"></span>
-    </li>
-  </template>
+  <main class="content">
+    <div class="content-empty" id="detailsEmpty">
+      <div class="empty-icon">◆</div>
+      <p>Select a movie to view details</p>
+    </div>
 
-  <div id="movieDetails"></div>
-
+    <div class="content-detail" id="movieDetails"></div>
+  </main>
 </div>
 
 <script src="app.js"></script>
